@@ -1,18 +1,17 @@
 from django.db import models
-from django.contrib.auth.models import User
-from team_builder.models import Team, Pokemon
+from django.contrib.auth.models import AbstractUser
+from django.contrib.auth import get_user_model
+
+
+class CustomUser(AbstractUser):
+    email = models.EmailField(unique=True)
+
+    def __str__(self):
+        return self.username
 
 
 class UserProfile(models.Model):
-    user = models.OneToOneField(User, on_delete=models.CASCADE)
+    user = models.OneToOneField(get_user_model(), on_delete=models.CASCADE)
     profile_image = models.ImageField(default='default.jpg', upload_to='profile_pics')
 
 
-class FavoriteTeam(models.Model):
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
-    team = models.ForeignKey(Team, on_delete=models.CASCADE)
-
-
-class FavoritePokemon(models.Model):
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
-    pokemon = models.ForeignKey(Pokemon, on_delete=models.CASCADE)

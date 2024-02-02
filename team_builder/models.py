@@ -1,5 +1,5 @@
 from django.db import models
-from django.contrib.auth.models import User
+from django.contrib.auth import get_user_model  # Zmieniony import
 from django.db.models import ForeignKey
 
 
@@ -12,13 +12,17 @@ class Type(models.Model):
 
 class Pokemon(models.Model):
     name = models.CharField(max_length=50)
-    type = ForeignKey(Type, on_delete=models.CASCADE)
+    primary_type = ForeignKey(Type, on_delete=models.CASCADE)
+    secondary_type = ForeignKey(Type, on_delete=models.CASCADE, related_name='pokemons_secondary_type', null=True,
+                                blank=True)
     hp = models.IntegerField()
     attack = models.IntegerField()
     defense = models.IntegerField()
     sp_attack = models.IntegerField()
     sp_defense = models.IntegerField()
     speed = models.IntegerField()
+    is_legendary = models.BooleanField(default=False)
+    is_mythical = models.BooleanField(default=False)
 
     def __str__(self):
         return self.name
@@ -33,15 +37,12 @@ class Move(models.Model):
     pp = models.IntegerField(null=True)
 
     def __str__(self):
-        # Might use these
-        # power_str = str(self.power) if self.power is not None else '---'
-        # accuracy_str = str(self.accuracy) if self.accuracy is not None else '---'
         return self.name
 
 
 class Team(models.Model):
     name = models.CharField(max_length=50)
-    user = models.ForeignKey(User, related_name='teams', on_delete=models.CASCADE)
+    user = models.ForeignKey(get_user_model(), related_name='teams', on_delete=models.CASCADE)
     is_complete = models.BooleanField(default=False)
 
     def __str__(self):
@@ -61,7 +62,7 @@ class TeamPokemon(models.Model):
 class Comment(models.Model):
     content = models.TextField()
     created_at = models.DateTimeField(auto_now_add=True)
-    user = models.ForeignKey(User, related_name='comments', on_delete=models.CASCADE)
+    user = models.ForeignKey(get_user_model(), related_name='comments', on_delete=models.CASCADE)
     team = models.ForeignKey(Team, related_name='comments', on_delete=models.CASCADE)
 
     def __str__(self):
@@ -84,3 +85,13 @@ class BuiltInTeamPokemon(models.Model):
 
     def __str__(self):
         return f'{self.team.name} - {self.pokemon.name}'
+
+
+class FavoriteTeam(models.Model):
+    user = models.ForeignKey(get_user_model(), on_delete=models.CASCADE)
+    team = models.ForeignKey(Team, on_delete=models.CASCADE)
+
+
+class FavoritePokemon(models.Model):
+    user = models.ForeignKey(get_user_model(), on_delete=models.CASCADE)
+    pokemon = models.ForeignKey(Pokemon, on_delete=models.CASCADE)
