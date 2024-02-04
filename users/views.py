@@ -7,7 +7,7 @@ from django.contrib.auth import authenticate, login, logout
 from .serializers import UserSerializer, UserCreateSerializer
 
 
-class UserLoginAPIView(APIView):
+class UserLogin(APIView):
     permission_classes = (AllowAny,)
 
     def post(self, request):
@@ -22,13 +22,13 @@ class UserLoginAPIView(APIView):
             return Response({'error': 'Invalid credentials'}, status=status.HTTP_400_BAD_REQUEST)
 
 
-class UserLogoutAPIView(APIView):
+class UserLogout(APIView):
     def post(self, request):
         logout(request)
         return Response(status=status.HTTP_200_OK)
 
 
-class UserCreateAPIView(APIView):
+class UserSignup(APIView):
     permission_classes = (AllowAny,)
 
     def post(self, request):

@@ -1,5 +1,5 @@
 from django.db import models
-from django.contrib.auth import get_user_model  # Zmieniony import
+from django.contrib.auth import get_user_model
 from django.db.models import ForeignKey
 
 
@@ -44,6 +44,7 @@ class Team(models.Model):
     name = models.CharField(max_length=50)
     user = models.ForeignKey(get_user_model(), related_name='teams', on_delete=models.CASCADE)
     is_complete = models.BooleanField(default=False)
+    is_private = models.BooleanField(default=False)
 
     def __str__(self):
         return self.name
