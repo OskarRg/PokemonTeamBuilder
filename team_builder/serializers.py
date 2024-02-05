@@ -2,38 +2,23 @@ from rest_framework import serializers
 from .models import Team, Move, Pokemon, TeamPokemon
 
 
+class TeamPokemonShortListSerializer(serializers.ModelSerializer):
+    pokemon_name = serializers.CharField(source='pokemon.name')
+
+    class Meta:
+        model = TeamPokemon
+        fields = ['pokemon_id', 'pokemon_name', 'slot']
+
+
 class TeamSerializer(serializers.ModelSerializer):
+    pokemons = TeamPokemonShortListSerializer(many=True, source='pokemons.all')
+
     class Meta:
         model = Team
         fields = '__all__'
 
 
-class TeamDetailSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Team
-        fields = '__all__'
-        read_only_fields = ('id', 'user')
-
-    def update(self, instance, validated_data):
-        for attr, value in validated_data.items():
-            setattr(instance, attr, value)
-        instance.save()
-        return instance
-
-
-class MoveSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Move
-        fields = '__all__'
-
-
-class PokemonSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Pokemon
-        fields = '__all__'
-
-
-class TeamPokemonCreateSerializer(serializers.ModelSerializer):
+class TeamPokemonSerializer(serializers.ModelSerializer):
     slot = serializers.IntegerField(min_value=1, max_value=6)
     moves = serializers.PrimaryKeyRelatedField(queryset=Move.objects.all(), many=True)
 
@@ -47,7 +32,6 @@ class TeamPokemonCreateSerializer(serializers.ModelSerializer):
         return value
 
     def create(self, validated_data):
-        print("UPDATEE", validated_data)
         team_id = self.context.get('team_id')
         moves_data = validated_data.pop('moves', [])
 
@@ -73,9 +57,22 @@ class TeamPokemonCreateSerializer(serializers.ModelSerializer):
         return instance
 
 
-class TeamPokemonShortListSerializer(serializers.ModelSerializer):
-    pokemon_name = serializers.CharField(source='pokemon.name')
+class TeamDetailSerializer(serializers.ModelSerializer):
+    pokemons = TeamPokemonSerializer(many=True, read_only=True)
 
     class Meta:
-        model = TeamPokemon
-        fields = ['pokemon_id', 'pokemon_name', 'slot']
+        model = Team
+        fields = ['id', 'name', 'user', 'is_complete', 'is_private', 'pokemons']
+        read_only_fields = ('id', 'user')
+
+
+class MoveSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Move
+        fields = '__all__'
+
+
+class PokemonSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Pokemon
+        fields = '__all__'
