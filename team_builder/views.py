@@ -1,29 +1,14 @@
-from rest_framework import status
-from rest_framework.permissions import AllowAny
+from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework import status, generics, permissions
+from rest_framework.filters import OrderingFilter
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from .models import Team, TeamPokemon, Move
+from .models import Team, TeamPokemon, Move, Pokemon
 from .serializers import TeamSerializer, TeamPokemonShortListSerializer, TeamDetailSerializer, TeamPokemonSerializer, \
     PokemonSerializer, MoveSerializer
-from rest_framework import permissions
+from .filters import PokemonFilter, MoveFilter, TeamFilter
 from rest_framework.authentication import SessionAuthentication
-
-
-class TeamCreate(APIView):
-    permission_classes = (permissions.IsAuthenticated,)
-
-    def post(self, request):
-        request.data['user'] = request.user.id
-        serializer = TeamSerializer(data=request.data)
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-    def get(self, request):
-        teams = Team.objects.filter(user=request.user)
-        serializer = TeamSerializer(teams, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
 
 
 class TeamDetail(APIView):
@@ -139,10 +124,19 @@ class TeamDetail(APIView):
 
 
 class TeamPokemonDetail(APIView):
+
+    def update_is_complete_pkm(self, team):
+        if team.pokemons.count() >= 6:
+            team.is_complete = True
+        else:
+            team.is_complete = False
+        team.save()
+
     def delete(self, request, team_id, slot):
         try:
             team_pokemon = TeamPokemon.objects.get(team_id=team_id, slot=slot)
             team_pokemon.delete()
+            self.update_is_complete_pkm(team_pokemon.team)
             return Response(status=status.HTTP_204_NO_CONTENT)
         except TeamPokemon.DoesNotExist:
             return Response({"error": "TeamPokemon not found."}, status=status.HTTP_404_NOT_FOUND)
@@ -176,50 +170,35 @@ class TeamPokemonDetail(APIView):
             return Response({"error": "TeamPokemon not found."}, status=status.HTTP_404_NOT_FOUND)
 
 
-# Needs reviewing
-class UserTeamListAPIView(APIView):
+class PokemonList(generics.ListAPIView):
+    queryset = Pokemon.objects.all()
+    serializer_class = PokemonSerializer
+    filter_backends = [DjangoFilterBackend, OrderingFilter]
+    filterset_class = PokemonFilter
+    ordering_fields = '__all__'
+
+
+class MoveList(generics.ListAPIView):
+    queryset = Move.objects.all()
+    serializer_class = MoveSerializer
+    filter_backends = [DjangoFilterBackend, OrderingFilter]
+    filterset_class = MoveFilter
+    ordering_fields = '__all__'
+
+
+class TeamListCreate(generics.ListCreateAPIView):
+    serializer_class = TeamSerializer
+    filter_backends = [DjangoFilterBackend, OrderingFilter]
+    filterset_class = TeamFilter
+    ordering_fields = ['name', 'is_complete', 'is_private']
     permission_classes = [permissions.IsAuthenticated]
 
-    def get(self, request):
-        user = request.user
-        teams = Team.objects.filter(user=user)
+    def get_queryset(self):
+        if not self.request.user.is_authenticated:
+            return Response({"error": "You need to be logged in to see your teams."}, status=status.HTTP_403_FORBIDDEN)
+        return Team.objects.filter(user=self.request.user)
 
-        sort_by = request.query_params.get('sort_by')
-        if sort_by == 'name':
-            teams = teams.order_by('name')
-        elif sort_by == 'id':
-            teams = teams.order_by('-id')
-
-        serialized_teams = []
-        for team in teams:
-            serialized_pokemons = TeamPokemonShortListSerializer(team.pokemons.all(), many=True).data
-            serialized_team = {
-                'name': team.name,
-                'pokemons': serialized_pokemons
-            }
-            serialized_teams.append(serialized_team)
-
-        return Response(serialized_teams)
-
-
-class MoveList(APIView):
-    def get(self, request):
-        moves = Move.objects.all()
-        name = request.query_params.get('name')
-        if name:
-            moves = moves.filter(name__icontains=name)
-
-        type = request.query_params.get('type')
-        if type:
-            moves = moves.filter(type__name__icontains=type)
-
-        category = request.query_params.get('category')
-        if category:
-            moves = moves.filter(category__icontains=category)
-
-        sort_by = request.query_params.get('sort_by', 'id')
-        moves = moves.order_by(sort_by)
-
-        serializer = MoveSerializer(moves, many=True)
-
-        return Response(serializer.data)
+    def perform_create(self, serializer):
+        if not self.request.user.is_authenticated:
+            return Response({"error": "You need to be logged in to create a team."}, status=status.HTTP_403_FORBIDDEN)
+        serializer.save(user=self.request.user)

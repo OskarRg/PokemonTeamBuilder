@@ -11,11 +11,16 @@ class TeamPokemonShortListSerializer(serializers.ModelSerializer):
 
 
 class TeamSerializer(serializers.ModelSerializer):
-    pokemons = TeamPokemonShortListSerializer(many=True, source='pokemons.all')
+    pokemons = TeamPokemonShortListSerializer(read_only=True, many=True, source='pokemons.all')
+    user = serializers.PrimaryKeyRelatedField(read_only=True)
 
     class Meta:
         model = Team
         fields = '__all__'
+
+    def create(self, validated_data):
+        team = Team.objects.create(**validated_data)
+        return team
 
 
 class TeamPokemonSerializer(serializers.ModelSerializer):
@@ -25,6 +30,7 @@ class TeamPokemonSerializer(serializers.ModelSerializer):
     class Meta:
         model = TeamPokemon
         exclude = ['team']
+        read_only_fields = ('id',)
 
     def validate_moves(self, value):
         if len(value) > 4:
@@ -63,7 +69,7 @@ class TeamDetailSerializer(serializers.ModelSerializer):
     class Meta:
         model = Team
         fields = ['id', 'name', 'user', 'is_complete', 'is_private', 'pokemons']
-        read_only_fields = ('id', 'user')
+        read_only_fields = ('id', 'user', 'name', 'is_complete')
 
 
 class MoveSerializer(serializers.ModelSerializer):
