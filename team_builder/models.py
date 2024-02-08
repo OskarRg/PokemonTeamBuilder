@@ -1,6 +1,5 @@
 from django.db import models
 from django.contrib.auth import get_user_model
-from django.db.models import ForeignKey
 
 
 class Type(models.Model):
@@ -12,8 +11,8 @@ class Type(models.Model):
 
 class Pokemon(models.Model):
     name = models.CharField(max_length=50)
-    primary_type = ForeignKey(Type, on_delete=models.CASCADE)
-    secondary_type = ForeignKey(Type, on_delete=models.CASCADE, related_name='pokemons_secondary_type', null=True,
+    primary_type = models.ForeignKey(Type, on_delete=models.CASCADE)
+    secondary_type = models.ForeignKey(Type, on_delete=models.CASCADE, related_name='pokemons_secondary_type', null=True,
                                 blank=True)
     hp = models.IntegerField()
     attack = models.IntegerField()
@@ -60,16 +59,6 @@ class TeamPokemon(models.Model):
         return f'{self.team.name} - {self.pokemon.name} (slot {self.slot})'
 
 
-class Comment(models.Model):
-    content = models.TextField()
-    created_at = models.DateTimeField(auto_now_add=True)
-    user = models.ForeignKey(get_user_model(), related_name='comments', on_delete=models.CASCADE)
-    team = models.ForeignKey(Team, related_name='comments', on_delete=models.CASCADE)
-
-    def __str__(self):
-        return f'{self.user.username} - {self.content}'
-
-
 class BuiltInTeam(models.Model):
     name = models.CharField(max_length=50)
     is_complete = models.BooleanField(default=False)
@@ -96,3 +85,4 @@ class FavoriteTeam(models.Model):
 class FavoritePokemon(models.Model):
     user = models.ForeignKey(get_user_model(), on_delete=models.CASCADE)
     pokemon = models.ForeignKey(Pokemon, on_delete=models.CASCADE)
+

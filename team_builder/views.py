@@ -1,7 +1,6 @@
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status, generics, permissions
 from rest_framework.filters import OrderingFilter
-from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from .models import Team, TeamPokemon, Move, Pokemon
@@ -11,8 +10,22 @@ from .filters import PokemonFilter, MoveFilter, TeamFilter
 from rest_framework.authentication import SessionAuthentication
 
 
+class IsOwnerOrReadOnly(permissions.BasePermission):
+    def has_object_permission(self, request, view, obj):
+        if request.method in ['GET', 'HEAD', 'OPTIONS']:
+            return True
+        return obj.user == request.user
+
+
+class IsAuthenticatedToCreate(permissions.BasePermission):
+    def has_permission(self, request, view):
+        if request.method == 'POST':
+            return request.user and request.user.is_authenticated
+        return True
+
+
 class TeamDetail(APIView):
-    permission_classes = [AllowAny]
+    permission_classes = [IsOwnerOrReadOnly]
 
     def update_is_complete(self, team):
         if team.pokemons.count() >= 6:
@@ -124,6 +137,7 @@ class TeamDetail(APIView):
 
 
 class TeamPokemonDetail(APIView):
+    permission_classes = [IsOwnerOrReadOnly]
 
     def update_is_complete_pkm(self, team):
         if team.pokemons.count() >= 6:
@@ -160,7 +174,7 @@ class TeamPokemonDetail(APIView):
     def patch(self, request, team_id, slot):
         try:
             team_pokemon = TeamPokemon.objects.get(team_id=team_id, slot=slot)
-            data = {'moves': request.data.get('moves')}  # Tylko pola moves można zmieniać
+            data = {'moves': request.data.get('moves')}
             serializer = TeamPokemonSerializer(team_pokemon, data=data, partial=True)
             if serializer.is_valid():
                 serializer.save()
@@ -176,6 +190,11 @@ class PokemonList(generics.ListAPIView):
     filter_backends = [DjangoFilterBackend, OrderingFilter]
     filterset_class = PokemonFilter
     ordering_fields = '__all__'
+
+
+class PokemonDetailView(generics.RetrieveAPIView):
+    queryset = Pokemon.objects.all()
+    serializer_class = PokemonSerializer
 
 
 class MoveList(generics.ListAPIView):
@@ -202,3 +221,4 @@ class TeamListCreate(generics.ListCreateAPIView):
         if not self.request.user.is_authenticated:
             return Response({"error": "You need to be logged in to create a team."}, status=status.HTTP_403_FORBIDDEN)
         serializer.save(user=self.request.user)
+

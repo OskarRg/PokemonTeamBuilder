@@ -1,4 +1,3 @@
-from rest_framework.filters import OrderingFilter
 import django_filters
 from team_builder.models import Pokemon, Move, Team
 

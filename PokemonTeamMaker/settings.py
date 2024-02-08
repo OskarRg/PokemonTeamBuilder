@@ -27,6 +27,8 @@ INSTALLED_APPS = [
     'rest_framework.authtoken',
     'team_builder',
     'users',
+    'comments',
+    
 ]
 
 MIDDLEWARE = [

@@ -2,6 +2,12 @@ from rest_framework import serializers
 from .models import Team, Move, Pokemon, TeamPokemon
 
 
+class PokemonSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Pokemon
+        fields = '__all__'
+
+
 class TeamPokemonShortListSerializer(serializers.ModelSerializer):
     pokemon_name = serializers.CharField(source='pokemon.name')
 
@@ -77,8 +83,3 @@ class MoveSerializer(serializers.ModelSerializer):
         model = Move
         fields = '__all__'
 
-
-class PokemonSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Pokemon
-        fields = '__all__'
