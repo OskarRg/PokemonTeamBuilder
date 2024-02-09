@@ -1,4 +1,4 @@
-from rest_framework import generics, permissions, status
+from rest_framework import generics, permissions, status, pagination
 
 from django.db.models import Count
 from django_filters.rest_framework import DjangoFilterBackend
@@ -9,6 +9,12 @@ from .filters import TeamCommentFilter, PokemonCommentFilter
 from team_builder.models import Team, Pokemon
 from .serializers import TeamCommentSerializer, PokemonCommentSerializer, UpvoteSerializer, \
     DownvoteSerializer, TeamCommentDetailSerializer, PokemonCommentDetailSerializer
+
+
+class StandardResultsSetPagination(pagination.PageNumberPagination):
+    page_size = 15
+    page_size_query_param = 'page_size'
+    max_page_size = 1000
 
 
 class IsOwnerOrReadOnly(permissions.BasePermission):
@@ -29,6 +35,7 @@ class TeamCommentListCreate(generics.ListCreateAPIView):
     serializer_class = TeamCommentSerializer
     filter_backends = [DjangoFilterBackend]
     filterset_class = TeamCommentFilter
+    pagination_class = StandardResultsSetPagination
     permission_classes = [IsAuthenticatedToCreate]
 
     def get_queryset(self):
@@ -76,6 +83,7 @@ class PokemonCommentListCreate(generics.ListCreateAPIView):
     serializer_class = PokemonCommentSerializer
     filter_backends = [DjangoFilterBackend]
     filterset_class = PokemonCommentFilter
+    pagination_class = StandardResultsSetPagination
     permission_classes = [IsAuthenticatedToCreate]
 
     def get_queryset(self):
@@ -88,6 +96,8 @@ class PokemonCommentListCreate(generics.ListCreateAPIView):
             queryset = queryset.annotate(upvotes_count=Count('upvotes')).order_by('-upvotes_count')
         elif order_by == 'downvotes':
             queryset = queryset.annotate(downvotes_count=Count('downvotes')).order_by('-downvotes_count')
+        elif order_by == 'created_at':
+            queryset = queryset.order_by('created_at')
         else:
             queryset = queryset.order_by('-created_at')
 
@@ -144,7 +154,6 @@ class UpvoteCreateAPIView(generics.CreateAPIView):
             if existing_upvote or existing_downvote:
                 return Response({'message': 'You have already upvoted this pokemon comment.'},
                                 status=status.HTTP_200_OK)
-            serializer = self.serializer_class()
             return Response({'message': 'You have not upvoted this pokemon comment.'},
                             status=status.HTTP_200_OK)
         else:
@@ -189,19 +198,18 @@ class DownvoteCreateAPIView(generics.CreateAPIView):
             existing_upvote = Upvote.objects.filter(user=user, team_comment=team_comment).exists()
             existing_downvote = Downvote.objects.filter(user=user, team_comment=team_comment).exists()
             if existing_upvote or existing_downvote:
-                return Response({'message': 'You have already upvoted this team comment.'}, status=status.HTTP_200_OK)
+                return Response({'message': 'You have already downvoted this team comment.'}, status=status.HTTP_200_OK)
 
-            return Response({'message': 'You have not upvoted this team comment.'},
+            return Response({'message': 'You have not downvoted this team comment.'},
                             status=status.HTTP_200_OK)
         elif 'pokemon_id' in self.kwargs:
             pokemon_comment = generics.get_object_or_404(PokemonComment, pk=pk)
             existing_upvote = Upvote.objects.filter(user=user, pokemon_comment=pokemon_comment).exists()
             existing_downvote = Downvote.objects.filter(user=user, pokemon_comment=pokemon_comment).exists()
             if existing_upvote or existing_downvote:
-                return Response({'message': 'You have already upvoted this pokemon comment.'},
+                return Response({'message': 'You have already downvoted this pokemon comment.'},
                                 status=status.HTTP_200_OK)
-            serializer = self.serializer_class()
-            return Response({'message': 'You have not upvoted this pokemon comment.'},
+            return Response({'message': 'You have not downvoted this pokemon comment.'},
                             status=status.HTTP_200_OK)
         else:
             return Response({'message': 'Invalid request. Please provide team_comment_id or pokemon_comment_id.'},
@@ -230,3 +238,23 @@ class DownvoteCreateAPIView(generics.CreateAPIView):
             return Response(
                 {'message': 'Invalid request. Please provide team_comment_id or pokemon_comment_id (from url).'},
                 status=status.HTTP_400_BAD_REQUEST)
+
+
+class UpvoteDelete(generics.DestroyAPIView):
+    queryset = Upvote.objects.all()
+    serializer_class = UpvoteSerializer
+
+    def delete(self, request, *args, **kwargs):
+        instance = self.get_object()
+        self.perform_destroy(instance)
+        return Response({'message': 'Upvote deleted successfully.'}, status=status.HTTP_204_NO_CONTENT)
+
+
+class DownvoteDelete(generics.DestroyAPIView):
+    queryset = Upvote.objects.all()
+    serializer_class = UpvoteSerializer
+
+    def delete(self, request, *args, **kwargs):
+        instance = self.get_object()
+        self.perform_destroy(instance)
+        return Response({'message': 'Downvote deleted successfully.'}, status=status.HTTP_204_NO_CONTENT)
