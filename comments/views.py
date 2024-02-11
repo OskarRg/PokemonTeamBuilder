@@ -41,19 +41,19 @@ class CommentListCreate(generics.ListCreateAPIView):
     def get_queryset(self):
         team_id = self.kwargs['pk']
         queryset = self.serializer_class.Meta.model.objects.filter(team_id=team_id)
-        # It could work, but first I need to figure out upvotes & downvotes logic
-        '''
+
         order_by = self.request.query_params.get('ordering')
 
         if order_by == 'upvotes':
-            queryset = queryset.annotate(upvotes_count=Count('votes', filter=Q(votes__is_upvote=True))).order_by('-upvotes_count')
+            queryset = queryset.annotate(upvotes_count=Count('votes', filter=Q(votes__is_upvote=True))).order_by(
+                '-upvotes_count')
         elif order_by == 'downvotes':
-            queryset = queryset.annotate(downvotes_count=Count('votes', filter=Q(votes__is_upvote=False))).order_by('-downvotes_count')
+            queryset = queryset.annotate(downvotes_count=Count('votes', filter=Q(votes__is_upvote=False))).order_by(
+                '-downvotes_count')
         elif order_by == 'date':
             queryset = queryset.order_by('created_at')
         else:
             queryset = queryset.order_by('-created_at')
-        '''
 
         return queryset
 
@@ -107,3 +107,64 @@ class PokemonCommentDetail(CommentDetail):
     queryset = PokemonComment.objects.all()
     serializer_class = PokemonCommentSerializer
 
+
+class CreateVote(generics.CreateAPIView):
+    serializer_class = VoteSerializer
+    permission_classes = [IsAuthenticatedToCreate]
+
+    def post(self, request, *args, **kwargs):
+        comment_type = self.kwargs.get('comment_type')
+        comment_id = self.kwargs.get('pk')
+        vote_type = self.kwargs.get('vote_type')
+
+        if vote_type == 'upvote':
+            is_upvote = True
+        elif vote_type == 'downvote':
+            is_upvote = False
+        else:
+            return Response({'detail': 'Invalid vote type.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if comment_type == 'team':
+            comment_model = TeamComment
+        elif comment_type == 'pokemon':
+            comment_model = PokemonComment
+        else:
+            return Response({'comment_type': ['Invalid comment type.']}, status=status.HTTP_400_BAD_REQUEST)
+
+        comment = generics.get_object_or_404(comment_model, pk=comment_id)
+        user = request.user
+
+        existing_vote = Vote.objects.filter(user=user, content_type_id=ContentType.objects.get_for_model(comment).id,
+                                            object_id=comment_id).first()
+        if existing_vote:
+            return Response({'detail': 'You have already voted for this comment.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        Vote.objects.create(user=user, content_type=ContentType.objects.get_for_model(comment), object_id=comment_id,
+                            is_upvote=is_upvote)
+        return Response({'detail': 'Vote added successfully.'}, status=status.HTTP_201_CREATED)
+
+
+class DeleteVote(generics.DestroyAPIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def delete(self, request, *args, **kwargs):
+        comment_type = self.kwargs.get('comment_type')
+        comment_id = self.kwargs.get('pk')
+
+        if comment_type == 'team':
+            comment_model = TeamComment
+        elif comment_type == 'pokemon':
+            comment_model = PokemonComment
+        else:
+            return Response({'comment_type': ['Invalid comment type.']}, status=status.HTTP_400_BAD_REQUEST)
+
+        comment = generics.get_object_or_404(comment_model, pk=comment_id)
+        user = request.user
+
+        existing_vote = Vote.objects.filter(user=user, content_type_id=ContentType.objects.get_for_model(comment).id,
+                                            object_id=comment_id).first()
+        if not existing_vote:
+            return Response({'detail': 'You have not voted for this comment.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        existing_vote.delete()
+        return Response({'detail': 'Vote deleted successfully.'}, status=status.HTTP_204_NO_CONTENT)
