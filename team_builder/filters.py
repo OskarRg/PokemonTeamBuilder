@@ -1,6 +1,5 @@
 import django_filters
-from team_builder.models import Pokemon, Move, Team
-
+from team_builder.models import Pokemon, Move, Team, TeamPokemon
 
 class PokemonFilter(django_filters.FilterSet):
     class Meta:
@@ -41,3 +40,15 @@ class TeamFilter(django_filters.FilterSet):
             'is_complete': ['exact'],
             'is_private': ['exact'],
         }
+
+
+class TeamPokemonFilter(django_filters.FilterSet):
+    slot = django_filters.NumberFilter(field_name='slot', lookup_expr='exact')
+    pokemon__name = django_filters.CharFilter(field_name='pokemon__name', lookup_expr='icontains')
+
+    class Meta:
+        model = TeamPokemon
+        fields = ['slot', 'pokemon__name']
+
+    def filter_by_team_id(self, queryset, value):
+        return queryset.filter(team_id=value)

@@ -8,78 +8,74 @@ class PokemonSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 
-class TeamPokemonShortListSerializer(serializers.ModelSerializer):
-    pokemon_name = serializers.CharField(source='pokemon.name')
-
-    class Meta:
-        model = TeamPokemon
-        fields = ['pokemon_id', 'pokemon_name', 'slot']
-
-
-class TeamSerializer(serializers.ModelSerializer):
-    pokemons = TeamPokemonShortListSerializer(read_only=True, many=True, source='pokemons.all')
-    user = serializers.PrimaryKeyRelatedField(read_only=True)
-
-    class Meta:
-        model = Team
-        fields = '__all__'
-
-    def create(self, validated_data):
-        team = Team.objects.create(**validated_data)
-        return team
-
-
-class TeamPokemonSerializer(serializers.ModelSerializer):
-    slot = serializers.IntegerField(min_value=1, max_value=6)
-    moves = serializers.PrimaryKeyRelatedField(queryset=Move.objects.all(), many=True)
-
-    class Meta:
-        model = TeamPokemon
-        exclude = ['team']
-        read_only_fields = ('id',)
-
-    def validate_moves(self, value):
-        if len(value) > 4:
-            raise serializers.ValidationError("A Pokemon can have at most 4 moves.")
-        return value
-
-    def create(self, validated_data):
-        team_id = self.context.get('team_id')
-        moves_data = validated_data.pop('moves', [])
-
-        team_pokemon = TeamPokemon.objects.create(team_id=team_id, **validated_data)
-
-        team_pokemon.moves.add(*moves_data)
-
-        return team_pokemon
-
-    def update(self, instance, validated_data):
-        moves = validated_data.pop('moves', None)
-        slot = validated_data.pop('slot', None)
-        pokemon = validated_data.pop('pokemon', None)
-
-        if moves is not None:
-            instance.moves.set(moves)
-        if slot is not None:
-            instance.slot = slot
-        if pokemon is not None:
-            instance.pokemon = pokemon
-
-        instance.save()
-        return instance
-
-
-class TeamDetailSerializer(serializers.ModelSerializer):
-    pokemons = TeamPokemonSerializer(many=True, read_only=True)
-
-    class Meta:
-        model = Team
-        fields = ['id', 'name', 'user', 'is_complete', 'is_private', 'pokemons']
-        read_only_fields = ('id', 'user', 'name', 'is_complete')
-
-
 class MoveSerializer(serializers.ModelSerializer):
     class Meta:
         model = Move
         fields = '__all__'
 
+
+class TeamSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Team
+        fields = '__all__'
+        read_only_fields = ['user', 'is_complete']
+
+
+class TeamPokemonListSerializer(serializers.ModelSerializer):
+    moves = serializers.PrimaryKeyRelatedField(queryset=Move.objects.all(), required=False, many=True)
+    slot = serializers.IntegerField(min_value=1, max_value=6, required=False)
+
+    class Meta:
+        model = TeamPokemon
+        fields = '__all__'
+        read_only_fields = ['team']
+
+    def validate_slot(self, value):
+        team_id = self.context.get('team_id')
+        if team_id:
+            team = Team.objects.get(pk=team_id)
+            if TeamPokemon.objects.filter(team=team, slot=value).exists():
+                raise serializers.ValidationError("Slot is already occupied.")
+
+        return value
+
+    def validate_moves(self, value):
+        if len(set(value)) != len(value):
+            raise serializers.ValidationError("Each move must be different.")
+        if len(value) > 4:
+            raise serializers.ValidationError("A Pokemon cannot have more than 4 moves.")
+        return value
+
+    def create(self, validated_data):
+        team_id = self.context.get('team_id')
+        team = Team.objects.get(pk=team_id)
+        validated_data['team'] = team
+        return super().create(validated_data)
+
+
+class TeamPokemonDetailSerializer(serializers.ModelSerializer):
+    moves = serializers.PrimaryKeyRelatedField(queryset=Move.objects.all(), required=False, many=True)
+    slot = serializers.IntegerField(min_value=1, max_value=6, required=False)
+
+    class Meta:
+        model = TeamPokemon
+        fields = '__all__'
+        read_only_fields = ['team']
+
+    def validate_slot(self, value):
+        instance = self.instance
+        team_id = instance.team_id
+
+        team = Team.objects.get(pk=team_id)
+        if instance and instance.slot == value:
+            return value
+        if TeamPokemon.objects.filter(team=team, slot=value).exists():
+            raise serializers.ValidationError("Slot is already occupied.")
+        return value
+
+    def validate_moves(self, value):
+        if len(set(value)) != len(value):
+            raise serializers.ValidationError("Each move must be different.")
+        if len(value) > 4:
+            raise serializers.ValidationError("A Pokemon cannot have more than 4 moves.")
+        return value
