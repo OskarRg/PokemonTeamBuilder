@@ -89,7 +89,7 @@ class TeamPokemonListCreate(generics.ListCreateAPIView):
     def perform_create(self, serializer):
         team_id = self.kwargs.get('team_id')
         team = generics.get_object_or_404(Team, id=team_id)
-        serializer.save(team=team, context={'team_id': team_id})
+        serializer.save(team=team)
 
 
 class TeamPokemonDetail(generics.RetrieveUpdateDestroyAPIView):
@@ -99,3 +99,11 @@ class TeamPokemonDetail(generics.RetrieveUpdateDestroyAPIView):
 
     def perform_update(self, serializer):
         serializer.save(team=self.get_object().team)
+
+    def perform_destroy(self, instance):
+        team = instance.team
+        instance.delete()
+
+        if TeamPokemon.objects.filter(team=team).count() < 6:
+            team.is_complete = False
+            team.save()
